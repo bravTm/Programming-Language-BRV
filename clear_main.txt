@@ -1,0 +1,31 @@
+#include <iostream>
+#include <vector>
+
+#include "./readfile.h"
+#include "./lexer.h"
+#include "./parser.h"
+
+using namespace std;
+
+int main(int argc, char** argv){
+    if(!argv[1]) {
+        cout << "File wasn't opened-> LOGOUT";
+        return -1;
+    }
+
+    vector <vector <string>> vec = lexer(readFile(argv[1]));
+
+    parser(vec);
+    
+    // for(int i = 0; i < vec.size(); i++){
+    //     cout << "[";
+
+    //     for(int j = 0; j < vec[i].size(); j++){
+    //         cout << vec[i][j] << ", ";
+    //     }
+
+    //     cout << "], ";
+    // }
+
+    return 0;
+}

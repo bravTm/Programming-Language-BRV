@@ -1,0 +1,23 @@
+Math functions
+- pow(a, n)
+- root(a, n)     // n - степень корня, по умолчанию n = 2
+- ceil(double n), floor(double n)
+- abs(double n)  // модуль
+- factorial(int n)
+- logarithm
+- log2(x)
+- log10(x)
+
+
+------------------ ARRAY ---------------------
+push(STRING or NUMBER) - добавить в конец
+pop() - удалить с конца
+
+len(Array or String) - длина строк или массива
+
+Input
+- input(text)
+
+Negative Number =     ~20(-20)
+
++, -, *, /, ^, %, ~

@@ -1,0 +1,428 @@
+// импорты все идут из других файлов и main.cpp
+#include "./Functions/eval.h"
+#include "./Functions/functions.h"
+// #include "./Variable/variable.h"
+// #include "./String/allString.h"
+
+// tokens[i][0] - TokenType     tokens[i][1] - Content
+
+///////////////////////////// SECONDARY FUNCTIONS -----------------------------------------
+inline bool isNumber(const std::string& s) {
+    try {
+        std::stoi(s);
+    } catch (std::exception& e) {
+        return false;
+    }
+    return true;
+}
+
+///////////////////////////   SEARCH EXPRESSION   ----------------------------------------------
+
+// определяет все мат. выражение
+string searchExpression(int index, vector <vector <string>> tokens){
+    string res = "", prevTokenType = "";
+    int i = index;
+
+    while(i < tokens.size()){
+        if((tokens[i][0] != "NUMBER" && tokens[i][0] != "OPERATOR")) {
+            break;
+        }
+        res += tokens[i][1];
+
+        prevTokenType = tokens[i][0];
+        i = i + 1; // optimization
+    }
+
+    return res;
+}
+
+
+///////////////////////////   SEARCH STRING   ----------------------------------------------
+inline void symbolByIndex(string &metstr, string item){
+    string idx;
+    for(int j = 1; j < item.size(); j++){
+        if(item[j] == ']') break;
+
+        idx += item[j];
+    }
+
+    if(stoi(idx) > metstr.size() - 1) {
+        cout << "STRINGERROR: Index out of line";
+        exit(-1);
+    }
+    metstr = metstr[stoi(idx)];
+}
+
+// для методов
+void methodDo(string &metstr, string item){
+    int i = 0;
+    if(item == ".length") metstr = to_string((float)metstr.size());
+    else if(item == ".to_upper"){
+        while (i < metstr.length()) {
+            metstr[i] = toupper(metstr[i]);
+            i = i + 1; // optimization
+        }
+    }
+    else if(item == ".to_lower"){
+        while (i < metstr.length()) {
+            metstr[i] = tolower(metstr[i]);
+            i = i + 1; // optimization
+        }
+    }
+    else if(item == ".reverse"){
+        i = metstr.length();
+        string s = "";
+        while (i >= 0) {
+            s += metstr[i];
+            i = i - 1; // optimization
+        }
+
+        metstr = s;
+    }
+}
+
+// определяет все строки
+string searchString(int index, vector <vector <string>> tokens){
+    string res = "", prevTokenType = "";
+    string metstr = ""; // для работы с методами
+    bool error = false;
+    int idx = index;
+
+    for(int i = index; i < tokens.size() - 1; i++){
+
+        if(tokens[i][0] == "SEMICOLON" || 
+            (tokens[i][0] != "STRING" && tokens[i][0] != "METHODSTR" && tokens[i][0] != "OPERATOR" && tokens[i][0] != "INDEX")){
+            break;
+        }
+        idx = idx + 1;
+
+        if(tokens[i+1][0] == "METHODSTR" && tokens[i][0] == "STRING") {
+            metstr += tokens[i][1].substr(1, tokens[i][1].size() - 2);
+            continue;
+        }
+        else if(tokens[i+1][0] == "INDEX" && tokens[i][0] == "STRING") {
+            metstr += tokens[i][1].substr(1, tokens[i][1].size() - 2);
+            continue;
+        }
+        else if(tokens[i][0] == "INDEX"){
+            symbolByIndex(metstr, tokens[i][1]);
+        }
+        else if(tokens[i][0] == "METHODSTR"){
+            methodDo(metstr, tokens[i][1]);
+        }
+
+        prevTokenType = tokens[i][0];
+
+        if(tokens[i][0] == "OPERATOR"){
+            if(tokens[i][1] == "+") continue;
+            else break;
+        }
+
+        if(tokens[i][0] == "METHODSTR" && metstr.size() > 0) {
+            res += metstr;
+            metstr = "";
+        }
+        else if(tokens[i][0] == "INDEX" && metstr.size() > 0) {
+            res += metstr;
+            metstr = "";
+        }
+        else res += tokens[i][1].substr(1, tokens[i][1].size() - 2);
+    }
+
+
+    if(tokens[tokens.size() - 1][0] == "METHODSTR" && idx == tokens.size() - 1){
+        methodDo(metstr, tokens[tokens.size() - 1][1]);
+        res += metstr;
+        metstr = "";
+    }
+    else if(tokens[tokens.size() - 1][0] == "INDEX" && idx == tokens.size() - 1){
+        symbolByIndex(metstr, tokens[idx][1]);
+        res += metstr;
+        metstr = "";
+    }
+    else if(tokens[tokens.size() - 1][0] == "STRING" && idx == tokens.size() - 1) {  
+        res += tokens[tokens.size() - 1][1].substr(1, tokens[tokens.size() - 1][1].size() - 2);
+    }
+
+    return res;
+}
+
+/////////////////////////////// IF ---------------------------
+vector <int> workIf(int index, vector <vector <string>> tokens){
+    vector <vector <string>> condition;
+    bool isThen = false;
+    int idxend = -1;
+    int idxElse = -1;
+    bool isEl = false;
+
+    for(int i = index + 1; i < tokens.size(); i++){
+        if(tokens[i][0] == "THEN") isThen = true;
+        if(!isThen){
+            vector <string> temp;
+            if((tokens[i][0] == "NUMBER" || tokens[i][1] == "(") && !isEl) {
+                temp.push_back("NUMBER");
+                temp.push_back(to_string(calc(searchExpression(i, tokens))));
+            }
+            else if(tokens[i][0] == "STRING" && !isEl){
+                string item = searchString(i, tokens);
+                
+                if(isNum(item)) temp.push_back("NUMBER");
+                else temp.push_back("STRING");
+                temp.push_back(item);
+            }
+            else if(isEl && (tokens[i][0] != "STRING" && tokens[i][0] != "STRING")) {
+                condition.push_back(tokens[i]);
+                isEl = false;
+            }
+
+            if((tokens[i][0] == "NUMBER" || tokens[i][1] == "(" || tokens[i][0] == "STRING") && !isEl){
+                condition.push_back(temp);
+                isEl = true;  
+            }
+        }
+        
+        if(isThen && tokens[i][0] == "ENDIF"){
+            idxend = i;
+            break;
+        }
+        else if(isThen && tokens[i][0] == "ELSE"){
+            idxElse = i;
+        }
+    }
+
+    if(condition[0][0] != "STRING" && condition[0][0] != "NUMBER" && condition[0][0] != "NOT") except("IFERROR: Condition invalid");
+
+    string prev_item, oper;
+    vector <string> last;
+    
+    for(int i = 0; i < condition.size(); i++){
+        if((condition[i][0] == "AND" || condition[i][0] == "OR" || condition[i][0] == "NOT") && i != 0){
+            last.push_back(condition[i][0]);
+            prev_item = "";
+            oper = "";
+            continue;
+        }
+
+        if(prev_item.size() > 0 && oper.size() > 0){
+            if(oper == "COMPARISON"){
+                if(prev_item == condition[i][1]) last.push_back("1");
+                else last.push_back("0");
+            }
+            else if(oper == "UNEQUAL"){
+                if(prev_item != condition[i][1]) last.push_back("1");
+                else last.push_back("0");
+            }
+            else if(oper == "MORE"){
+                if(isNum(prev_item) && isNum(condition[i][1])){
+                    if(stoi(prev_item) > stoi(condition[i][1])) last.push_back("1");
+                    else last.push_back("0");
+                }
+            }
+            else if(oper == "LESS"){
+                if(isNum(prev_item) && isNum(condition[i][1])){
+                    if(stoi(prev_item) < stoi(condition[i][1])) last.push_back("1");
+                    else last.push_back("0");
+                }
+            }
+
+            continue;
+        }
+
+        if(prev_item == "" && (condition[i][0] == "STRING" || condition[i][0] == "NUMBER")){
+            prev_item = condition[i][1];
+        }
+        else if(condition[i][0] == "COMPARISON" || condition[i][0] == "UNEQUAL" || condition[i][0] == "MORE" || condition[i][0] == "LESS"){
+            oper = condition[i][0];
+        }
+    }
+
+    vector<vector<string>>().swap(condition);
+
+    bool answer = stoi(last[0]);
+
+    if(last.size() > 1){
+        for(int i = 1; i < last.size() - 1; i++){
+            if(last[i] == "AND") answer = answer && stoi(last[i+1]);
+            else if(last[i] == "OR") answer = answer || stoi(last[i+1]);
+            else if(last[i] == "NOT") answer = !answer;
+        }
+    }
+
+    vector<string>().swap(last);
+
+    vector <int> ret = {answer, idxElse + 1};
+
+    ret.push_back(idxend + 1);
+
+    return ret;
+}
+
+
+// #include "./if_else/if.h" // чтобы searchExpression попадал в if.h
+
+
+///////////////////////////   VARIABLES -------------------------------------------------------
+void writeVariableuse(int i, vector <vector <string>> variables, vector <vector <string>>& tokens){
+    vector <string> vec;
+    cmatch result;
+
+    regex regularNum("[0-9]+[.]?[0-9]*");
+    regex regularNeg("~{1}[0-9]+[.]?[0-9]*");
+
+    bool isFind = false;
+    for(int j = 0; j < variables.size(); j++){
+        if(variables[j][0] == tokens[i][1].substr(1, tokens[i][1].size() - 1)){
+            if(regex_match(variables[j][1].c_str(), result, regularNum)){
+                vec.push_back("NUMBER");
+            }
+            else if(regex_match(variables[j][1].c_str(), result, regularNeg)){
+                vec.push_back("NEGATIVE_NUMBER");
+            }
+            else vec.push_back("STRING");
+            
+            if(vec[0] == "STRING"){
+                vec.push_back("\"" + variables[j][1] + "\"");
+            }
+            else vec.push_back(variables[j][1]);
+            
+            isFind = true;
+            break;
+        }
+    }
+
+    tokens[i] = vec;
+
+    if(!isFind){ 
+        except("Variable " + tokens[i][1] + " was not found\n\n" + 
+    "!Initialize Variable!    Example below\n\n" + "$" + tokens[i][1].substr(1, tokens[i][1].size()-1) +
+    " => 100 * 20\n\n" + "Good luck!");
+    }
+}
+
+vector <string> recognizeVariable(int index, vector <vector <string>>& tokens, vector <vector <string>> variables){
+    vector <string> res = {tokens[index][1].substr(1, tokens[index][1].size() - 1)};
+    bool isAssign = false;
+
+    int idx = index + 1;
+
+    // Для обнаружения в данной строке VARIABLEUSE и записи в нее значения, для использования ниже
+    while(tokens[idx][0] != "SEMICOLON"){
+        if(tokens[idx][0] == "VARIABLEUSE"){
+            writeVariableuse(idx, variables, tokens);
+        }
+        idx++;
+    }
+
+    for(int i = index + 1; i < tokens.size(); i++){
+        if(tokens[i][0] == "SEMICOLON") break;
+
+        if(tokens[i][0] == "ASSIGN") {
+            isAssign = true;
+            continue;
+        }
+
+        if(isAssign) {
+            if(tokens[i][0] == "NUMBER") {
+                res.push_back(to_string(calc(searchExpression(i, tokens))));
+                break;
+            }
+            else if(tokens[i][0] == "STRING"){
+                res.push_back(searchString(i, tokens));
+                break;
+            }
+        }
+    }
+
+    if(!isAssign) {
+        except("Assignment was not successful. Variable - " + res[0]);
+    }
+
+    return res;
+}
+
+
+void overwriteVariable(int index, int indexVar, vector <vector <string>>& variables, vector <vector <string>> tokens){
+    vector <string> vec = recognizeVariable(index, tokens, variables);
+    variables[indexVar][1] = vec[1];
+}
+
+
+///////////////////////////   MAIN PARSER ----------------------------------------------------------
+
+void parser(vector <vector <string>>& tokens){
+    vector <vector <string>> variables;
+
+    int elseIdx, elseChange;
+
+
+    for(int i = 0; i < tokens.size(); i++){
+        if(tokens[i][0] == "FUNCTION"){
+            vector <string> vec = functions(tokens[i][1]);
+            tokens[i] = vec;
+            continue;
+        }
+    }
+
+    for(int i = 0; i < tokens.size(); i++){
+        if(tokens[i][0] == "VARIABLE"){
+            bool isNew = true;
+            int indexVar;
+
+            for(int j = 0 ; j < variables.size(); j++){
+                if(variables[j][0] == tokens[i][1].substr(1, tokens[i][1].size() - 1)){
+                    isNew = false;
+                    indexVar = j;
+                    break;
+                }
+            }
+
+            if(isNew) variables.push_back(recognizeVariable(i, tokens, variables));
+            else overwriteVariable(i, indexVar, variables, tokens);
+        }
+        else if(tokens[i][0] == "VARIABLEUSE" && tokens[i].size() != 3){
+            writeVariableuse(i, variables, tokens);
+        }
+    }
+
+
+    for(int i = 0; i < tokens.size() - 1; i++){
+        if(i == elseIdx) {
+            i = elseChange;
+            continue;
+        }
+        if(tokens[i][0] == "LOG"){
+            if(tokens[i+1][0] == "NUMBER" || tokens[i+1][1] == "(") {
+                cout << calc(searchExpression(i+1, tokens)) << endl;
+                continue;
+            }
+            else if(tokens[i+1][0] == "STRING"){
+                cout << searchString(i+1, tokens) << endl;
+                continue;
+            }
+        }
+        else if(tokens[i][0] == "IF"){
+            vector <int> vec = workIf(i, tokens);
+
+            if(vec[1] != -1 && vec[0] == 0){
+                i = vec[1];
+            }
+
+            if(vec[0] == 1 && vec[1] != -1){
+                elseIdx = vec[1];
+                elseChange = vec[2];
+            }
+            
+            if(vec[1] == -1 && vec[0] == 0) i = vec[2];
+        }
+    }
+
+    // cout << "\n\n\nVARIABLES\n"; 
+    // for(int i = 0; i < variables.size(); i++){
+    //     cout << "[";
+    //     for(int j = 0; j < variables[i].size(); j++){
+    //         cout << variables[i][j] << " ";
+    //     }
+    //     cout << "],  ";
+    // }
+    // cout << "\nEND VARIABLE\n\n";
+}

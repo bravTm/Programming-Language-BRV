@@ -1,0 +1,12 @@
+# Example code on BRV 
+
+$input => input("Enter your name")
+Log "Hello " @input + "! Nice to meet you!"
+
+$age => input("Enter your age")
+
+if @age < 18 then
+  Log "You younger 18"
+else 
+  Log "You older 18"
+endif

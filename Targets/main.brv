@@ -1,0 +1,12 @@
+# Example code on BRV (base of receivement vitality)
+
+$input => "Mike"
+Log "Hello " @input + "! Nice to meet you!"
+
+$age => 40
+
+if @age < 18 then
+  Log "You younger 18"
+else 
+  Log "You older 18"
+endif

@@ -1,0 +1,221 @@
+// импорты все идут из других файлов и main.cpp
+#include "./Functions/eval.h"
+#include "./Variable/variable.h"
+#include "./Functions/functions.h"
+#include "./String/allString.h"
+
+// tokens[i][0] - TokenType     tokens[i][1] - Content
+
+///////////////////////////// SECONDARY FUNCTIONS -----------------------------------------
+inline bool isNumber(const std::string& s) {
+    try {
+        std::stoi(s);
+    } catch (std::exception& e) {
+        return false;
+    }
+    return true;
+}
+
+///////////////////////////   SEARCH EXPRESSION   ----------------------------------------------
+
+// определяет все мат. выражение
+string searchExpression(int index, vector <vector <string>> tokens){
+    string res = "", prevTokenType = "";
+    int i = index;
+
+    while(i < tokens.size()){
+        if((tokens[i][0] != "NUMBER" && tokens[i][0] != "OPERATOR")) {
+            break;
+        }
+        res += tokens[i][1];
+
+        prevTokenType = tokens[i][0];
+        i = i + 1; // optimization
+    }
+
+    return res;
+}
+
+/////////////////////////////// IF ---------------------------
+
+
+#include "./if_else/if.h" // чтобы searchExpression попадал в if.h
+#include "./while/while.h" // чтобы searchExpression попадал в while.h
+
+
+///////////////////////////   VARIABLES -------------------------------------------------------
+
+vector <string> recognizeVariable(int index, vector <vector <string>>& tokens, vector <vector <string>> variables){
+    vector <string> res = {tokens[index][1].substr(1, tokens[index][1].size() - 1)};
+    bool isAssign = false;
+
+    int idx = index + 1;
+
+    // Для обнаружения в данной строке VARIABLEUSE и записи в нее значения, для использования ниже
+    while(tokens[idx][0] != "SEMICOLON"){
+        if(tokens[idx][0] == "VARIABLEUSE"){
+            writeVariableuse(idx, variables, tokens);
+        }
+        idx++;
+    }
+
+    for(int i = index + 1; i < tokens.size(); i++){
+        if(tokens[i][0] == "SEMICOLON") break;
+
+        if(tokens[i][0] == "ASSIGN") {
+            isAssign = true;
+            continue;
+        }
+
+        if(isAssign) {
+            if(tokens[i][0] == "NUMBER") {
+                res.push_back(to_string(calc(searchExpression(i, tokens))));
+                break;
+            }
+            else if(tokens[i][0] == "STRING"){
+                res.push_back(searchString(i, tokens));
+                break;
+            }
+        }
+    }
+
+    if(!isAssign) {
+        except("Assignment was not successful. Variable - " + res[0]);
+    }
+
+    return res;
+}
+
+
+void overwriteVariable(int index, int indexVar, vector <vector <string>>& variables, vector <vector <string>>& tokens){
+    vector <string> vec = recognizeVariable(index, tokens, variables);
+    variables[indexVar][1] = vec[1];
+}
+
+
+///////////////////////////   MAIN PARSER ----------------------------------------------------------
+
+void parser(vector <vector <string>>& tokens){
+    for(int i = 0; i < tokens.size(); i++){
+        if(tokens[i][0] == "FUNCTION"){
+            vector <string> vec = functions(tokens[i][1]);
+            tokens[i] = vec;
+            continue;
+        }
+    }
+
+    vector <vector <string>> variables;
+    bool isCircle = false;
+
+    for(int i = 0; i < tokens.size(); i++){
+        if(tokens[i][0] == "WHILE"){
+            isCircle = true;
+        }
+        if(tokens[i][0] == "ENDWHILE"){
+            isCircle = false;
+        }
+        if(tokens[i][0] == "VARIABLE"){
+            bool isNew = true;
+            int indexVar;
+
+            for(int j = 0 ; j < variables.size(); j++){
+                if(variables[j][0] == tokens[i][1].substr(1, tokens[i][1].size() - 1)){
+                    isNew = false;
+                    indexVar = j;
+                    break;
+                }
+            }
+
+            if(isNew) variables.push_back(recognizeVariable(i, tokens, variables));
+            else {
+                if(!isCircle) overwriteVariable(i, indexVar, variables, tokens);
+            }
+        }
+        else if(tokens[i][0] == "VARIABLEUSE" && tokens[i].size() != 4){
+            writeVariableuse(i, variables, tokens);
+        }
+    }
+
+    int elseIdx, elseChange;
+    int whileStart, whileEnd;
+
+    for(int i = 0; i < tokens.size() - 1; i++){
+        if(i == elseIdx) {
+            i = elseChange;
+            continue;
+        }
+        else if(whileStart != -1){
+            if(i == whileEnd){
+                i = whileStart;
+            }
+        }
+
+
+        if(tokens[i][0] == "LOG"){
+            if(tokens[i+1][0] == "NUMBER" || tokens[i+1][1] == "(") {
+                cout << calc(searchExpression(i+1, tokens)) << endl;
+                continue;
+            }
+            else if(tokens[i+1][0] == "STRING"){
+                cout << searchString(i+1, tokens) << endl;
+                continue;
+            }
+        }
+
+        else if((tokens[i][0] == "VARIABLE" || tokens[i].size() == 4) && whileStart != -1){
+            int indexVar;
+
+            for(int j = 0 ; j < variables.size(); j++){
+                if(tokens[i].size() == 4 && tokens[i][2] == variables[j][0]) {
+                    upgradeVariables(i, tokens, variables);
+                    tokens[i][1] = variables[j][1];
+                    break;
+                }
+                else if(variables[j][0] == tokens[i][1].substr(1, tokens[i][1].size() - 1)){
+                    indexVar = j;
+                    break;
+                }
+            }
+
+            if(tokens[i][0] == "VARIABLE"){
+                overwriteVariable(i, indexVar, variables, tokens);
+            }
+        }
+
+        else if(tokens[i][0] == "IF"){
+            vector <int> vec = workIf(i, tokens);
+
+            if(vec[1] != -1 && vec[0] == 0){
+                i = vec[1];
+            }
+
+            if(vec[0] == 1 && vec[1] != -1){
+                elseIdx = vec[1];
+                elseChange = vec[2];
+            }
+            
+            if(vec[1] == -1 && vec[0] == 0) i = vec[2];
+        }
+        else if(tokens[i][0] == "WHILE"){
+            vector <int> ret = whileWork(i, tokens);
+
+            if(ret[0] == 0){
+                whileStart = -1;
+                i = ret[1];
+            }else {
+                whileStart = i;
+            }
+            whileEnd = ret[1];
+        }
+    }
+
+    // cout << "\n\n\nVARIABLES\n"; 
+    // for(int i = 0; i < variables.size(); i++){
+    //     cout << "[";
+    //     for(int j = 0; j < variables[i].size(); j++){
+    //         cout << variables[i][j] << " ";
+    //     }
+    //     cout << "],  ";
+    // }
+    // cout << "\nEND VARIABLE\n\n";
+}

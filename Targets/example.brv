@@ -1,0 +1,18 @@
+$variable => "Hello, World!"
+Log variable;
+
+if (condition...) 
+    ...code...
+else
+    ...code...
+endif
+
+
+while (condition...)
+
+endwhile
+
+
+for (condition...)
+
+endfor
